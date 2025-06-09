@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { GameStateService } from '../services/GameStateService';
 import { ActionResolutionService } from '../services/ActionResolutionService';
+import { authMiddleware, AuthRequest } from '../middleware/auth';
 
 export class GameStateController {
     private router: Router;
@@ -15,23 +16,29 @@ export class GameStateController {
     }
 
     private initializeRoutes(): void {
+        // Apply auth middleware to all routes
+        this.router.use(authMiddleware);
+        
         this.router.post('/games', this.createGame);
         this.router.post('/games/:id/advance-time', this.advanceTime);
         this.router.get('/games/:id/state', this.getGameState);
     }
 
-    private createGame = async (req, res) => {
+    private createGame = async (req: AuthRequest, res: Response) => {
         try {
-            const id = this.gameStateService.createGameState(req.body);
+            const id = await this.gameStateService.createGameState({
+                ...req.body,
+                createdBy: req.user?.id
+            });
             res.status(201).json({ id });
         } catch (error) {
             res.status(400).json({ error: error.message });
         }
     };
 
-    private advanceTime = async (req, res) => {
+    private advanceTime = async (req: AuthRequest, res: Response) => {
         try {
-            this.gameStateService.advanceTime(
+            await this.gameStateService.advanceTime(
                 req.params.id,
                 req.body.hours
             );
@@ -41,9 +48,9 @@ export class GameStateController {
         }
     };
 
-    private getGameState = async (req, res) => {
+    private getGameState = async (req: AuthRequest, res: Response) => {
         try {
-            const gameState = this.gameStateService.getGameState(req.params.id);
+            const gameState = await this.gameStateService.getGameState(req.params.id);
             res.json(gameState);
         } catch (error) {
             res.status(404).json({ error: error.message });
