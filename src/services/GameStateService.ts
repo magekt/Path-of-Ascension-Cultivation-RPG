@@ -9,7 +9,7 @@ import { logger } from '../utils/logger';
 
 export class GameStateService {
     private webSocketService: WebSocketService;
-    private readonly INITIAL_TIME = "2025-06-09 17:07:26";
+    private readonly INITIAL_TIME = "2025-06-09 17:16:58";
     private readonly MAX_TIME_ADVANCE = 24; // Maximum hours to advance at once
     private readonly MIN_QI_REGEN = 1; // Minimum Qi regeneration per hour
 
