@@ -72,6 +72,43 @@ export class GameStateService {
         return gameState;
     }
 
+    public async getGameHealth(id: string): Promise<{
+        id: string;
+        status: string;
+        characterCount: number;
+        investigationCount: number;
+        currentTime: string;
+        lastUpdated: string;
+    }> {
+        const gameState = await this.getGameState(id);
+        return {
+            id: gameState.id,
+            status: gameState.status?.active ? 'active' : 'idle',
+            characterCount: gameState.characters ? gameState.characters.size : 0,
+            investigationCount: gameState.activeInvestigations ? gameState.activeInvestigations.size : 0,
+            currentTime: gameState.currentTime,
+            lastUpdated: gameState.lastUpdated
+        };
+    }
+
+    public async deleteGameState(id: string, userId?: string): Promise<void> {
+        const gameState = await GameStateModel.findOne({ id });
+        if (!gameState) {
+            throw new NotFoundError(`Game state not found: ${id}`);
+        }
+
+        await GameStateModel.deleteOne({ id });
+
+        this.webSocketService.broadcastEvent({
+            type: 'STATE_UPDATED',
+            gameStateId: id,
+            timestamp: new Date().toISOString(),
+            data: { action: 'deleted', deletedBy: userId }
+        });
+
+        logger.info('Deleted game state', { gameStateId: id, userId });
+    }
+
     public async advanceTime(gameStateId: string, hours: number): Promise<void> {
         if (!Number.isInteger(hours) || hours <= 0 || hours > this.MAX_TIME_ADVANCE) {
             throw new ValidationError(`Hours must be a positive integer <= ${this.MAX_TIME_ADVANCE}`);
