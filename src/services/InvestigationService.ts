@@ -1,7 +1,7 @@
 import { Investigation, SubObjective, Lead, Clue } from '../types/investigation';
 import { InvestigationModel } from '../models/Investigation';
 import { Character } from '../types/core';
-import { ValidationError, NotFoundError } from '../types/errors';
+import { NotFoundError } from '../types/errors';
 import { WebSocketService } from './WebSocketService';
 import { logger } from '../utils/logger';
 
@@ -15,11 +15,12 @@ export class InvestigationService {
     public async createInvestigation(data: Partial<Investigation>): Promise<string> {
         try {
             const id = crypto.randomUUID();
+            const nowIso = new Date().toISOString();
             const investigation = new InvestigationModel({
                 ...data,
                 id,
-                createdAt: "2025-06-09 17:12:13",
-                lastUpdated: "2025-06-09 17:12:13"
+                createdAt: nowIso,
+                lastUpdated: nowIso
             });
 
             await investigation.save();
@@ -27,7 +28,7 @@ export class InvestigationService {
             this.webSocketService.broadcastEvent({
                 type: 'INVESTIGATION_CREATED',
                 gameStateId: data.gameStateId,
-                timestamp: "2025-06-09 17:12:13",
+                timestamp: nowIso,
                 data: { investigationId: id }
             });
 
@@ -56,8 +57,9 @@ export class InvestigationService {
             throw new NotFoundError('Sub-objective not found');
         }
 
+        const nowIso = new Date().toISOString();
         subObjective.progress = Math.min(100, Math.max(0, progress));
-        investigation.lastUpdated = "2025-06-09 17:12:13";
+        investigation.lastUpdated = nowIso;
 
         // Check for newly discovered clues
         await this.checkClueDiscovery(investigation, subObjective, character);
@@ -70,7 +72,7 @@ export class InvestigationService {
         this.webSocketService.broadcastEvent({
             type: 'INVESTIGATION_UPDATED',
             gameStateId: investigation.gameStateId,
-            timestamp: "2025-06-09 17:12:13",
+            timestamp: nowIso,
             data: {
                 investigationId,
                 subObjectiveId,
@@ -117,6 +119,8 @@ export class InvestigationService {
         investigation: Investigation,
         clue: Clue
     ): Promise<void> {
+        const nowIso = new Date().toISOString();
+
         // Unlock connected leads
         if (clue.leadsTo) {
             clue.leadsTo.forEach(leadId => {
@@ -130,7 +134,7 @@ export class InvestigationService {
         this.webSocketService.broadcastEvent({
             type: 'CLUE_DISCOVERED',
             gameStateId: investigation.gameStateId,
-            timestamp: "2025-06-09 17:12:13",
+            timestamp: nowIso,
             data: {
                 investigationId: investigation.id,
                 clueId: clue.id,
@@ -142,6 +146,11 @@ export class InvestigationService {
 
     private updateMainObjectiveProgress(investigation: Investigation): void {
         const totalSubObjectives = investigation.subObjectives.length;
+        if (totalSubObjectives === 0) {
+            investigation.mainObjective.progress = 0;
+            return;
+        }
+
         const totalProgress = investigation.subObjectives.reduce(
             (sum, sub) => sum + sub.progress,
             0
@@ -171,8 +180,8 @@ export class InvestigationService {
         return lead.requirements.every(req => {
             switch (req.type) {
                 case 'Skill':
-                    const skill = character.skills.find(s => s.name === req.value);
-                    return skill && skill.level >= req.value;
+                    const skill = character.skills.find(s => s.name === String(req.value) || s.id === String(req.value));
+                    return Boolean(skill && skill.level >= req.value);
                 case 'Standing':
                     return character.sectStanding >= req.value;
                 default:
