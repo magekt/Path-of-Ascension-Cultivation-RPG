@@ -49,9 +49,9 @@
     Investigation Progress = (Sub-Objectives Completed / Total Sub-Objectives) * 100
     ```
 
-- **NPC & Faction Relationship System:**
-  - **NPC Cards:** Tracks attitude bars (e.g., Favorable, Hostile), key personality traits, and available options (Seek guidance, Report findings, Request resources, Offer assistance).
-  - **Faction Standing:** Multilevel standing trackers across sects (e.g. Azure Cloud Sect, Iron Sword Sect) and internal tiers (Outer Sect, Inner Sect, Elders, Peers).
+- **NPC & Faction Relationship System (`RelationshipService`):**
+  - **NPC Cards:** Tracks attitude meters (0-100), key traits, interaction options, and attitude milestone unlocks.
+  - **Faction Standing:** Tracks 5-tier standings (`Hostile`, `Cautious`, `Neutral`, `Friendly`, `Respected / Revered`).
 
 ---
 
@@ -98,20 +98,39 @@ The repository contains modular tabletop adventure guides and GM toolkits that m
   - `TIME_ADVANCED`: Broadcast when in-game time advances, detailing time delta and passive results.
   - `CHARACTER_UPDATED`: Sent when a character's stats, Qi, skills, or effects are updated.
   - `INVESTIGATION_UPDATED`: Sent on clue discovery, lead state changes, or objective completion.
-- **Client Commands:**
-  - Client subscription command: `{ "type": "command", "payload": { "command": "subscribe", "gameStateId": "<id>" } }`
+  - `NPC_RELATIONSHIP_UPDATED`: Sent when NPC attitudes change or milestones are unlocked.
+  - `FACTION_STANDING_UPDATED`: Sent when sect/faction standing level changes.
+
+---
+
+## 🚀 Autonomous Gameplay Expansion Roadmap
+
+Below are concrete, self-contained features that can be autonomously developed in coming coding sessions:
+
+1. **Turn-Based Cultivation Combat System (`src/services/CombatService.ts`):**
+   - Duel/battle resolution rules engine incorporating Qi expenditure, skill mastery, artifact bonuses, and martial techniques.
+   - Turn actions: Martial Strike, Spiritual Defense, Artifact Activation, Flee.
+
+2. **Interactive Breakthrough Mini-Game Engine (`src/services/BreakthroughService.ts`):**
+   - Tribulation simulation for Realm breakthroughs (`Qi Condensation` -> `Foundation` -> `Core Formation` -> `Nascent Soul`).
+   - Dynamic stage modifiers: Mind-demon suppression rolls, pill/material consumption, venue alignment, and disciple support bonuses.
+
+3. **Artifact Crafting & Pill Refinement Engine (`src/services/CraftingService.ts`):**
+   - Recipe registry matching spirit materials, furnace heat control, skill requirements, and chance of high-rarity artifacts or pills (`Common`, `Uncommon`, `Rare`, `Epic`, `Legendary`).
+
+4. **Automated GM Event & Quest Generator (`src/services/GMEventGeneratorService.ts`):**
+   - Dynamic daily event generator using random tables from `Path_of_Ascension_GM_Toolkit.md` (Spirit beast intrusions, rare celestial alignments, disciple rivalries, hidden realm openings).
 
 ---
 
 ## Key Maintenance Notes for AI Agents
 
 1. **Timestamp Consistency:**
-   - Default fallback ISO string in legacy schemas: `"2025-06-09 17:26:10"`.
-   - When introducing new state mutations, use current UTC ISO strings via `new Date().toISOString()`.
+   - Always use current ISO strings via `new Date().toISOString()`.
 
 2. **Database Queries:**
-   - `GameStateService` and `InvestigationService` utilize Mongoose models with fallback in-memory or document transformations.
-   - Ensure Maps (`characters`, `activeInvestigations`) are converted cleanly when serializing JSON responses.
+   - `GameStateService`, `InvestigationService`, and `RelationshipService` interact directly with Mongoose models or in-memory dynamic state maps.
+   - Map properties must be converted to standard objects when formatting HTTP JSON responses.
 
 3. **Testing Coverage:**
    - Service unit tests live in `src/tests/services/`.
