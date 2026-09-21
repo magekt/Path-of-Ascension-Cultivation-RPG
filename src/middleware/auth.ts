@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { config } from '../config/config';
 
 export interface AuthRequest extends Request {
     user?: {
@@ -15,7 +16,7 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
             throw new Error('Authentication token missing');
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret');
+        const decoded = jwt.verify(token, config.jwt.secret);
         req.user = decoded as { id: string; username: string };
         next();
     } catch (error) {

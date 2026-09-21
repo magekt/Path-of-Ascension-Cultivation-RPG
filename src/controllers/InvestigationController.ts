@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { InvestigationService } from '../services/InvestigationService';
 import { WebSocketService } from '../services/WebSocketService';
-import { AuthRequest } from '../middleware/auth';
+import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { apiRateLimit } from '../middleware/validation';
 import { logger } from '../utils/logger';
 
 export class InvestigationController {
@@ -15,6 +16,10 @@ export class InvestigationController {
     }
 
     private initializeRoutes(): void {
+        // Enforce authentication and rate limiting on all investigation endpoints
+        this.router.use(authMiddleware);
+        this.router.use(apiRateLimit);
+
         this.router.post('/', this.createInvestigation);
         this.router.patch('/:id/progress', this.updateProgress);
         this.router.get('/:id/leads', this.getActiveLeads);
