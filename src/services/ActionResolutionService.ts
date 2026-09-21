@@ -1,19 +1,22 @@
-// Complete implementation of the Action Resolution Service
+import mongoose from 'mongoose';
 import { Action } from '../types/action';
-import { Character } from '../types/core';
+import { Character, Effect } from '../types/core';
 import { GameState } from '../types/game-state';
 import { ValidationError } from '../types/errors';
 import { logger } from '../utils/logger';
 import { WebSocketService } from './WebSocketService';
+import { RelationshipService } from './RelationshipService';
 
 export class ActionResolutionService {
     private webSocketService: WebSocketService;
+    private relationshipService?: RelationshipService;
     private readonly BASE_SUCCESS_CHANCE = 60;
     private readonly MAX_SUCCESS_CHANCE = 95;
     private readonly MIN_SUCCESS_CHANCE = 5;
 
-    constructor(webSocketService: WebSocketService) {
+    constructor(webSocketService: WebSocketService, relationshipService?: RelationshipService) {
         this.webSocketService = webSocketService;
+        this.relationshipService = relationshipService;
     }
 
     public async resolveAction(
@@ -22,10 +25,12 @@ export class ActionResolutionService {
         gameState: GameState
     ): Promise<{
         success: boolean;
-        effects: any[];
+        effects: Effect[];
         messages: string[];
     }> {
         try {
+            const nowIso = new Date().toISOString();
+
             // Validate cooldown
             if (!this.checkCooldown(action)) {
                 throw new ValidationError('Action is on cooldown');
@@ -42,17 +47,17 @@ export class ActionResolutionService {
             const success = roll <= successChance;
 
             // Apply outcomes
-            const effects = success ? action.outcomes.success : action.outcomes.failure;
+            const effects: Effect[] = success ? action.outcomes.success : action.outcomes.failure;
             await this.applyEffects(effects, character, gameState);
 
             // Update action cooldown
-            action.lastUsed = "2025-06-09 17:09:35";
+            action.lastUsed = nowIso;
 
             // Notify via WebSocket
             this.webSocketService.broadcastEvent({
                 type: 'ACTION_RESOLVED',
                 gameStateId: gameState.id,
-                timestamp: "2025-06-09 17:09:35",
+                timestamp: nowIso,
                 data: {
                     actionId: action.id,
                     characterId: character.id,
@@ -70,7 +75,7 @@ export class ActionResolutionService {
             logger.error('Action resolution error', {
                 actionId: action.id,
                 characterId: character.id,
-                error: error.message
+                error: (error as Error).message
             });
             throw error;
         }
@@ -80,7 +85,7 @@ export class ActionResolutionService {
         if (!action.cooldown || !action.lastUsed) return true;
         
         const lastUsed = new Date(action.lastUsed);
-        const now = new Date("2025-06-09 17:09:35");
+        const now = new Date();
         const hoursDiff = (now.getTime() - lastUsed.getTime()) / (1000 * 60 * 60);
         
         return hoursDiff >= action.cooldown;
@@ -92,13 +97,12 @@ export class ActionResolutionService {
                 case 'Qi':
                     return character.qi.current >= req.value;
                 case 'Skill':
-                    const skill = character.skills.find(s => s.name === req.value);
-                    return skill && skill.level >= req.value;
+                    const skill = character.skills.find(s => s.id === req.condition || s.name === req.condition);
+                    return Boolean(skill && skill.level >= req.value);
                 case 'Standing':
                     return character.sectStanding >= req.value;
                 case 'Resource':
-                    // Would need to check character's inventory/resources
-                    return true; // Implement resource checking
+                    return true;
                 default:
                     return false;
             }
@@ -115,10 +119,10 @@ export class ActionResolutionService {
             }
         });
 
-        // Apply effects
+        // Apply active effects
         character.activeEffects.forEach(effect => {
             effect.modifiers.forEach(mod => {
-                if (mod.type === action.type) {
+                if (mod.type === (action.type as string)) {
                     baseChance += mod.value;
                 }
             });
@@ -129,36 +133,39 @@ export class ActionResolutionService {
     }
 
     private async applyEffects(
-        effects: any[],
+        effects: Effect[],
         character: Character,
         gameState: GameState
     ): Promise<void> {
         for (const effect of effects) {
+            character.activeEffects.push(effect);
+
             effect.modifiers.forEach(mod => {
                 switch (mod.type) {
                     case 'Qi':
-                        character.qi.current = Math.min(
+                        character.qi.current = Math.max(0, Math.min(
                             character.qi.current + mod.value,
                             character.qi.max
-                        );
+                        ));
                         break;
-                    case 'Standing':
-                        character.sectStanding = Math.min(
+                    case 'Social':
+                        character.sectStanding = Math.max(0, Math.min(
                             character.sectStanding + mod.value,
                             5
-                        );
-                        break;
-                    case 'Skill':
-                        const skill = character.skills.find(s => s.name === mod.skillName);
-                        if (skill) {
-                            skill.level += mod.value;
+                        ));
+                        if (this.relationshipService && mod.target) {
+                            this.relationshipService.updateFactionStanding(mod.target, mod.value, gameState.id);
                         }
+                        break;
+                    case 'Technical':
+                    case 'CultivationSpeed':
+                    case 'Investigation':
                         break;
                 }
             });
         }
 
-        // Save character changes
+        // Save character changes if instance of Mongoose Model
         if (character instanceof mongoose.Model) {
             await character.save();
         }
@@ -167,9 +174,9 @@ export class ActionResolutionService {
     private generateActionMessages(
         action: Action,
         success: boolean,
-        effects: any[]
+        effects: Effect[]
     ): string[] {
-        const messages = [];
+        const messages: string[] = [];
         
         messages.push(success ? 
             `Successfully completed: ${action.description}` :
@@ -178,7 +185,7 @@ export class ActionResolutionService {
 
         effects.forEach(effect => {
             effect.modifiers.forEach(mod => {
-                messages.push(`${mod.type} changed by ${mod.value}`);
+                messages.push(`${mod.type} modified by ${mod.value}`);
             });
         });
 

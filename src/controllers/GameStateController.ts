@@ -26,6 +26,7 @@ export class GameStateController {
         
         this.router.post('/games', validateRequest(gameStateSchema), this.createGame);
         this.router.post('/games/:id/advance-time', validateRequest(advanceTimeSchema), this.advanceTime);
+        this.router.post('/games/:id/actions/resolve', this.resolveAction);
         this.router.get('/games/:id/state', this.getGameState);
         this.router.get('/games/:id/health', this.getGameHealth);
         this.router.delete('/games/:id', this.deleteGame);
@@ -46,9 +47,9 @@ export class GameStateController {
         } catch (error) {
             logger.error('Create game error:', { 
                 userId: req.user?.id, 
-                error: error.message 
+                error: (error as Error).message
             });
-            res.status(400).json({ error: error.message });
+            res.status(400).json({ error: (error as Error).message });
         }
     };
 
@@ -71,9 +72,27 @@ export class GameStateController {
         } catch (error) {
             logger.error('Advance time error:', { 
                 gameId: req.params.id, 
-                error: error.message 
+                error: (error as Error).message
             });
-            res.status(404).json({ error: error.message });
+            res.status(404).json({ error: (error as Error).message });
+        }
+    };
+
+    private resolveAction = async (req: AuthRequest, res: any) => {
+        try {
+            const gameState = await this.gameStateService.getGameState(req.params.id);
+            const { action, character } = req.body;
+            const result = await this.actionResolutionService.resolveAction(action, character, gameState);
+            res.json({
+                result,
+                timestamp: new Date().toISOString()
+            });
+        } catch (error) {
+            logger.error('Resolve action error:', {
+                gameId: req.params.id,
+                error: (error as Error).message
+            });
+            res.status(400).json({ error: (error as Error).message });
         }
     };
 
@@ -87,9 +106,9 @@ export class GameStateController {
         } catch (error) {
             logger.error('Get game state error:', { 
                 gameId: req.params.id, 
-                error: error.message 
+                error: (error as Error).message
             });
-            res.status(404).json({ error: error.message });
+            res.status(404).json({ error: (error as Error).message });
         }
     };
 
@@ -103,15 +122,11 @@ export class GameStateController {
         } catch (error) {
             logger.error('Get game health error:', { 
                 gameId: req.params.id, 
-                error: error.message 
+                error: (error as Error).message
             });
-            res.status(404).json({ error: error.message });
+            res.status(404).json({ error: (error as Error).message });
         }
     };
-    public getRouter(): Router {
-        return this.router;
-    }
-}
 
     private deleteGame = async (req: AuthRequest, res: any) => {
         try {
@@ -123,8 +138,13 @@ export class GameStateController {
         } catch (error) {
             logger.error('Delete game error:', { 
                 gameId: req.params.id, 
-                error: error.message 
+                error: (error as Error).message
             });
-            res.status(404).json({ error: error.message });
+            res.status(404).json({ error: (error as Error).message });
         }
     };
+
+    public getRouter(): Router {
+        return this.router;
+    }
+}

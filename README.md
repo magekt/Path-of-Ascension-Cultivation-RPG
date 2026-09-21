@@ -1,321 +1,139 @@
 # Path of Ascension API
 
-A comprehensive backend API for the Path of Ascension cultivation RPG game, built with Node.js, TypeScript, and MongoDB.
+A comprehensive, production-ready backend API for the **Path of Ascension** menu-driven cultivation RPG game, built with Node.js, Express, TypeScript, MongoDB, and WebSockets.
+
+---
 
 ## 🚀 Features
 
-- **Real-time Game State Management** - WebSocket-based real-time updates
-- **Investigation System** - Complex mystery-solving mechanics
-- **Character Progression** - Cultivation stages, skills, and artifacts
-- **Secure Authentication** - JWT-based auth with rate limiting
-- **Comprehensive Validation** - Input sanitization and schema validation
-- **Production Ready** - Docker support, monitoring, and logging
+- **Real-time Game State Management** - WebSocket-based real-time state updates and client synchronization
+- **Cultivation RPG System** - Qi capacity tracking, cultivation stage progress, breakthrough success mechanics, skills, and artifacts
+- **Investigation Engine** - Objective trees, clue discovery, evidence gathering, and lead examination
+- **NPC & Faction Relationships** - Attitude meters (0-100), milestone unlocks, and sect/faction standing levels
+- **Action Resolution Engine** - Requirement checks, skill modifiers, effect application, and cooldown tracking
+- **Production Ready** - Security headers via Helmet, CORS, Express rate limiting, Gzip compression, Winston logging, and Docker container support
 
-## 🏗️ Architecture
+---
 
-```
-src/
-├── config/          # Configuration files
-├── controllers/     # HTTP request handlers
-├── middleware/      # Express middleware
-├── models/          # MongoDB schemas
-├── services/        # Business logic
-├── types/           # TypeScript type definitions
-├── utils/           # Utility functions
-├── validation/      # Input validation schemas
-└── tests/           # Test suites
-```
-
-## 🛠️ Installation
+## 🛠️ Local Server Launch & Setup
 
 ### Prerequisites
 
-- Node.js 18+
-- MongoDB 6.0+
-- Redis (optional, for caching)
+- **Node.js**: >= 18.0.0
+- **npm**: >= 8.0.0
+- **MongoDB**: >= 6.0 (running locally or via Docker)
 
-### Local Development
+### Step-by-Step Server Launch
 
-1. **Clone the repository**
+1. **Clone & Install Dependencies**
    ```bash
    git clone <repository-url>
    cd path-of-ascension-api
-   ```
-
-2. **Install dependencies**
-   ```bash
    npm install
    ```
 
-3. **Set up environment variables**
+2. **Configure Environment Variables**
    ```bash
    cp .env.example .env
-   # Edit .env with your configuration
+   ```
+   *Verify your `.env` settings:*
+   ```env
+   NODE_ENV=development
+   PORT=3000
+   MONGODB_URI=mongodb://localhost:27017/path-of-ascension
+   JWT_SECRET=your-super-secure-secret-key
+   LOG_LEVEL=info
+   ALLOWED_ORIGINS=http://localhost:3000
    ```
 
-4. **Start MongoDB**
+3. **Start MongoDB Database**
    ```bash
    # Using Docker
    docker run -d -p 27017:27017 --name mongodb mongo:6.0
-   
-   # Or use your local MongoDB installation
+
+   # Or run local mongod daemon
    mongod
    ```
 
-5. **Run the development server**
+4. **Launch Development Server**
    ```bash
    npm run dev
    ```
+   The server will start listening on `http://localhost:3000`.
 
-### Docker Deployment
-
-1. **Build and run with Docker Compose**
-   ```bash
-   docker-compose up -d
-   ```
-
-2. **Check service health**
+5. **Verify Server Health**
    ```bash
    curl http://localhost:3000/health
+   curl http://localhost:3000/ready
    ```
 
-## 📚 API Documentation
+---
 
-### Authentication
+## 📚 Core API Endpoints
 
-All API endpoints require authentication via JWT token:
-
-```bash
+All protected endpoints require a JWT header:
+```http
 Authorization: Bearer <your-jwt-token>
 ```
 
-### Core Endpoints
+### Game State Management (`/api/game-states`)
 
-#### Game State Management
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/game-states/games` | Create a new game instance |
+| `GET` | `/api/game-states/games/:id/state` | Retrieve full game state |
+| `POST` | `/api/game-states/games/:id/advance-time` | Advance game time by X hours |
+| `POST` | `/api/game-states/games/:id/actions/resolve` | Resolve character action |
+| `GET` | `/api/game-states/games/:id/health` | Get game state status |
+| `DELETE` | `/api/game-states/games/:id` | Delete game instance |
 
-- `POST /api/game-states/games` - Create new game
-- `GET /api/game-states/games/:id/state` - Get game state
-- `POST /api/game-states/games/:id/advance-time` - Advance game time
-- `GET /api/game-states/games/:id/health` - Get game health status
-- `DELETE /api/game-states/games/:id` - Delete game
+### Investigation System (`/api/investigations`)
 
-#### Investigation System
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/investigations` | Create a new investigation |
+| `PATCH` | `/api/investigations/:id/progress` | Update sub-objective progress |
+| `GET` | `/api/investigations/:id/leads` | Retrieve active leads |
 
-- `POST /api/investigations` - Create investigation
-- `PATCH /api/investigations/:id/progress` - Update progress
-- `GET /api/investigations/:id/leads` - Get active leads
+---
 
-#### Health Checks
+## 🔌 WebSocket Real-time Protocol
 
-- `GET /health` - Application health status
-- `GET /ready` - Readiness probe
+Connect to the WebSocket endpoint at:
+`ws://localhost:3000/ws?gameStateId=<your-game-id>`
 
-### WebSocket Events
-
-Connect to WebSocket at `/ws?gameStateId=<game-id>`
-
-**Incoming Events:**
-- `STATE_UPDATED` - Game state changed
-- `TIME_ADVANCED` - Game time progressed
-- `CHARACTER_UPDATED` - Character progression
-- `INVESTIGATION_UPDATED` - Investigation progress
-
-**Outgoing Commands:**
+### Client Subscription Message
 ```json
 {
   "type": "command",
   "payload": {
     "command": "subscribe",
-    "gameStateId": "uuid"
+    "gameStateId": "<your-game-id>"
   }
 }
 ```
 
-## 🧪 Testing
-
-### Run Tests
-
-```bash
-# Unit tests
-npm test
-
-# Integration tests
-npm run test:integration
-
-# Coverage report
-npm run test:coverage
-
-# Watch mode
-npm run test:watch
-```
-
-### Test Structure
-
-- **Unit Tests** - Individual service and utility testing
-- **Integration Tests** - Full API endpoint testing
-- **WebSocket Tests** - Real-time communication testing
-
-## 🔒 Security Features
-
-- **Input Validation** - Comprehensive request validation
-- **Rate Limiting** - Configurable request limits
-- **CORS Protection** - Cross-origin request security
-- **Helmet.js** - Security headers
-- **JWT Authentication** - Secure token-based auth
-- **Input Sanitization** - XSS protection
-
-## 📊 Monitoring & Logging
-
-### Health Monitoring
-
-The API provides comprehensive health checks:
-
-```bash
-curl http://localhost:3000/health
-```
-
-Response includes:
-- Application status
-- Database connectivity
-- Memory usage
-- WebSocket connections
-- Uptime statistics
-
-### Logging
-
-Structured logging with Winston:
-
-- **Development** - Console output with colors
-- **Production** - JSON format for log aggregation
-- **Log Levels** - Error, Warn, Info, Debug
-
-### Metrics
-
-- Request/response times
-- Error rates
-- WebSocket connection counts
-- Database query performance
-
-## 🚀 Deployment
-
-### Environment Variables
-
-Key configuration options:
-
-```env
-NODE_ENV=production
-PORT=3000
-MONGODB_URI=mongodb://localhost:27017/path-of-ascension
-JWT_SECRET=your-super-secure-secret
-LOG_LEVEL=info
-ALLOWED_ORIGINS=https://yourdomain.com
-```
-
-### Production Checklist
-
-- [ ] Set secure JWT secret
-- [ ] Configure CORS origins
-- [ ] Set up MongoDB replica set
-- [ ] Configure reverse proxy (Nginx)
-- [ ] Set up SSL certificates
-- [ ] Configure monitoring alerts
-- [ ] Set up log aggregation
-- [ ] Configure backup strategy
-
-### Docker Production
-
-```bash
-# Build production image
-docker build -t path-of-ascension-api .
-
-# Run with production settings
-docker run -d \
-  -p 3000:3000 \
-  -e NODE_ENV=production \
-  -e MONGODB_URI=mongodb://mongo:27017/path-of-ascension \
-  -e JWT_SECRET=your-production-secret \
-  path-of-ascension-api
-```
-
-## 🔧 Development
-
-### Code Quality
-
-```bash
-# Linting
-npm run lint
-npm run lint:fix
-
-# Type checking
-npm run type-check
-
-# Formatting
-npm run format
-```
-
-### Git Hooks
-
-Pre-commit hooks ensure code quality:
-- ESLint validation
-- Prettier formatting
-- Type checking
-- Test execution
-
-### Database Migrations
-
-```bash
-# Create migration
-npm run migration:create <name>
-
-# Run migrations
-npm run migration:up
-
-# Rollback migration
-npm run migration:down
-```
-
-## 📈 Performance
-
-### Optimization Features
-
-- **Connection Pooling** - MongoDB connection optimization
-- **Request Compression** - Gzip compression
-- **Caching** - Redis-based caching layer
-- **WebSocket Heartbeat** - Connection health monitoring
-- **Database Indexing** - Optimized query performance
-
-### Performance Monitoring
-
-- Response time tracking
-- Memory usage monitoring
-- Database query analysis
-- WebSocket connection metrics
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
-
-### Development Guidelines
-
-- Follow TypeScript strict mode
-- Maintain 80%+ test coverage
-- Use conventional commit messages
-- Update documentation for new features
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- **Documentation** - Check this README and inline code comments
-- **Issues** - Report bugs via GitHub issues
-- **Discussions** - Use GitHub discussions for questions
+### Broadcast Event Types
+- `STATE_UPDATED` - Full or partial game state update
+- `TIME_ADVANCED` - In-game time progression notification
+- `CHARACTER_UPDATED` - Qi, skill, or breakthrough change
+- `INVESTIGATION_UPDATED` - Objective progress or lead state change
+- `CLUE_DISCOVERED` - New clue unlocked
+- `ACTION_RESOLVED` - Action roll outcome and applied effects
+- `NPC_RELATIONSHIP_UPDATED` - NPC attitude change & milestone unlocks
+- `FACTION_STANDING_UPDATED` - Faction standing tier update
 
 ---
 
-**Built with ❤️ for the cultivation RPG community**
+## 🧪 Testing & Quality Assurance
+
+```bash
+# Run unit tests
+npm test
+
+# Run type check
+npm run type-check
+
+# Run linter
+npm run lint
+```

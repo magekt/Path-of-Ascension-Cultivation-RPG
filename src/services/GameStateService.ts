@@ -5,16 +5,22 @@ import { CharacterModel } from '../models/Character';
 import { ValidationError, NotFoundError } from '../types/errors';
 import { gameStateSchema } from '../validation/schemas';
 import { WebSocketService } from './WebSocketService';
+import { RelationshipService } from './RelationshipService';
 import { logger } from '../utils/logger';
 
 export class GameStateService {
     private webSocketService: WebSocketService;
-    private readonly INITIAL_TIME = "2025-06-09 17:16:58";
+    private relationshipService: RelationshipService;
     private readonly MAX_TIME_ADVANCE = 24; // Maximum hours to advance at once
     private readonly MIN_QI_REGEN = 1; // Minimum Qi regeneration per hour
 
     constructor(webSocketService: WebSocketService) {
         this.webSocketService = webSocketService;
+        this.relationshipService = new RelationshipService(webSocketService);
+    }
+
+    public getRelationshipService(): RelationshipService {
+        return this.relationshipService;
     }
 
     public async createGameState(options: GameStateOptions = {}): Promise<string> {
@@ -23,7 +29,7 @@ export class GameStateService {
             await gameStateSchema.validate(options, { abortEarly: false });
 
             const id = crypto.randomUUID();
-            const currentTime = options.initialTime || this.INITIAL_TIME;
+            const currentTime = options.initialTime || new Date().toISOString();
             
             const gameState = new GameStateModel({
                 id,
@@ -58,8 +64,8 @@ export class GameStateService {
             return id;
         } catch (error) {
             logger.error('Error creating game state', { error });
-            if (error.name === 'ValidationError') {
-                throw new ValidationError('Invalid game state options', error.errors);
+            if ((error as any).name === 'ValidationError') {
+                throw new ValidationError('Invalid game state options', (error as any).errors);
             }
             throw error;
         }
@@ -73,6 +79,43 @@ export class GameStateService {
         return gameState;
     }
 
+    public async getGameHealth(id: string): Promise<{
+        id: string;
+        status: string;
+        characterCount: number;
+        investigationCount: number;
+        currentTime: string;
+        lastUpdated: string;
+    }> {
+        const gameState = await this.getGameState(id);
+        return {
+            id: gameState.id,
+            status: gameState.status?.active ? 'active' : 'idle',
+            characterCount: gameState.characters ? gameState.characters.size : 0,
+            investigationCount: gameState.activeInvestigations ? gameState.activeInvestigations.size : 0,
+            currentTime: gameState.currentTime,
+            lastUpdated: gameState.lastUpdated
+        };
+    }
+
+    public async deleteGameState(id: string, userId?: string): Promise<void> {
+        const gameState = await GameStateModel.findOne({ id });
+        if (!gameState) {
+            throw new NotFoundError(`Game state not found: ${id}`);
+        }
+
+        await GameStateModel.deleteOne({ id });
+
+        this.webSocketService.broadcastEvent({
+            type: 'STATE_UPDATED',
+            gameStateId: id,
+            timestamp: new Date().toISOString(),
+            data: { action: 'deleted', deletedBy: userId }
+        });
+
+        logger.info('Deleted game state', { gameStateId: id, userId });
+    }
+
     public async advanceTime(gameStateId: string, hours: number): Promise<void> {
         if (!Number.isInteger(hours) || hours <= 0 || hours > this.MAX_TIME_ADVANCE) {
             throw new ValidationError(`Hours must be a positive integer <= ${this.MAX_TIME_ADVANCE}`);
@@ -81,7 +124,7 @@ export class GameStateService {
         const gameState = await this.getGameState(gameStateId);
         
         try {
-            // Update game time
+            const previousTime = gameState.currentTime;
             const currentDate = new Date(gameState.currentTime);
             currentDate.setHours(currentDate.getHours() + hours);
             gameState.currentTime = currentDate.toISOString();
@@ -97,7 +140,7 @@ export class GameStateService {
                 gameStateId,
                 timestamp: gameState.currentTime,
                 data: {
-                    previousTime: currentDate.toISOString(),
+                    previousTime,
                     newTime: gameState.currentTime,
                     hoursPassed: hours
                 }
@@ -112,7 +155,7 @@ export class GameStateService {
             logger.error('Error advancing time', {
                 gameStateId,
                 hours,
-                error: error.message
+                error: (error as Error).message
             });
             throw error;
         }
@@ -258,7 +301,7 @@ export class GameStateService {
             data: {
                 investigationId,
                 status: 'completed',
-                results: investigation.results
+                results: (investigation as any).results
             }
         });
 
@@ -282,7 +325,7 @@ export class GameStateService {
     private applyEventEffects(gameState: GameState, event: Event): void {
         event.effects.forEach(effect => {
             // Apply global effects to all characters
-            if (effect.scope === 'global') {
+            if ((effect as any).scope === 'global') {
                 gameState.characters.forEach(char => {
                     char.activeEffects.push({
                         ...effect,
