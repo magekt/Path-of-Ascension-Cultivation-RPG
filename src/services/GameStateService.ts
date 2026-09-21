@@ -5,15 +5,22 @@ import { CharacterModel } from '../models/Character';
 import { ValidationError, NotFoundError } from '../types/errors';
 import { gameStateSchema } from '../validation/schemas';
 import { WebSocketService } from './WebSocketService';
+import { RelationshipService } from './RelationshipService';
 import { logger } from '../utils/logger';
 
 export class GameStateService {
     private webSocketService: WebSocketService;
+    private relationshipService: RelationshipService;
     private readonly MAX_TIME_ADVANCE = 24; // Maximum hours to advance at once
     private readonly MIN_QI_REGEN = 1; // Minimum Qi regeneration per hour
 
     constructor(webSocketService: WebSocketService) {
         this.webSocketService = webSocketService;
+        this.relationshipService = new RelationshipService(webSocketService);
+    }
+
+    public getRelationshipService(): RelationshipService {
+        return this.relationshipService;
     }
 
     public async createGameState(options: GameStateOptions = {}): Promise<string> {

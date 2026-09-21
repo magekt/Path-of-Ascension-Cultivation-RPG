@@ -5,15 +5,18 @@ import { GameState } from '../types/game-state';
 import { ValidationError } from '../types/errors';
 import { logger } from '../utils/logger';
 import { WebSocketService } from './WebSocketService';
+import { RelationshipService } from './RelationshipService';
 
 export class ActionResolutionService {
     private webSocketService: WebSocketService;
+    private relationshipService?: RelationshipService;
     private readonly BASE_SUCCESS_CHANCE = 60;
     private readonly MAX_SUCCESS_CHANCE = 95;
     private readonly MIN_SUCCESS_CHANCE = 5;
 
-    constructor(webSocketService: WebSocketService) {
+    constructor(webSocketService: WebSocketService, relationshipService?: RelationshipService) {
         this.webSocketService = webSocketService;
+        this.relationshipService = relationshipService;
     }
 
     public async resolveAction(
@@ -116,7 +119,7 @@ export class ActionResolutionService {
             }
         });
 
-        // Apply effects
+        // Apply active effects
         character.activeEffects.forEach(effect => {
             effect.modifiers.forEach(mod => {
                 if (mod.type === (action.type as string)) {
@@ -150,11 +153,13 @@ export class ActionResolutionService {
                             character.sectStanding + mod.value,
                             5
                         ));
+                        if (this.relationshipService && mod.target) {
+                            this.relationshipService.updateFactionStanding(mod.target, mod.value, gameState.id);
+                        }
                         break;
                     case 'Technical':
                     case 'CultivationSpeed':
                     case 'Investigation':
-                        // Modifiers applied dynamically during skill or tick checks
                         break;
                 }
             });
