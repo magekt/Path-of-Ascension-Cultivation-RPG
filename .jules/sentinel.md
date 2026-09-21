@@ -1,0 +1,4 @@
+## 2025-06-09 - Missing Authentication & Hardcoded Fallback JWT Secret in Controller Routes
+**Vulnerability:** `InvestigationController` endpoints lacked `authMiddleware` and `apiRateLimit` protection, allowing unauthorized access to investigation resources. Furthermore, `authMiddleware` contained a fallback hardcoded secret (`'default-secret'`) inconsistent with `config.ts`.
+**Learning:** Controller routes defined separately from main router setup must systematically apply shared security middlewares (`authMiddleware`, `apiRateLimit`) in `initializeRoutes()`, and secret management must strictly utilize centralized config (`config.jwt.secret`).
+**Prevention:** Always verify middleware chains in route initialization for all controllers and avoid inline fallback string literals for JWT validation secrets.

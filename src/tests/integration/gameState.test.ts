@@ -208,6 +208,28 @@ describe('GameState Integration Tests', () => {
         });
     });
 
+    describe('Investigation Endpoints Security', () => {
+        it('should require authentication for POST /api/investigations', async () => {
+            await request(server)
+                .post('/api/investigations')
+                .send({ title: 'Test Investigation' })
+                .expect(401);
+        });
+
+        it('should require authentication for PATCH /api/investigations/:id/progress', async () => {
+            await request(server)
+                .patch('/api/investigations/test-id/progress')
+                .send({ progress: 50 })
+                .expect(401);
+        });
+
+        it('should require authentication for GET /api/investigations/:id/leads', async () => {
+            await request(server)
+                .get('/api/investigations/test-id/leads')
+                .expect(401);
+        });
+    });
+
     describe('Rate Limiting', () => {
         it('should enforce rate limits', async () => {
             const gameData = { timeMultiplier: 1 };
